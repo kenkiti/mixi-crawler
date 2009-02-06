@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-#!/usr/bin/env ruby
+#! /usr/bin/env ruby
 # 
 # Mixi photo crawler 
 # 
