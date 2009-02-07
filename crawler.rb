@@ -81,7 +81,7 @@ module Crawler
     
     def login
       @agent.log.info "logging..."
-      config = Pit.get("mixi.jp", :require => { 
+      config = Pit.get("mixi.jp.2", :require => { 
           "username" => "your email in mixi",
           "password" => "your password in mixi"
         })
