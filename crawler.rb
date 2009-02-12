@@ -7,7 +7,7 @@
 # sudo gem install mechanize
 # sudo gem install pit
 # sudo gem install activerecord(rails)
-# sudo gem install sqlite-ruby
+# sudo gem install sqlite3-ruby
 # 
 
 require 'logger'
