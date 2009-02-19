@@ -159,20 +159,27 @@ module Crawler
     # 承認ボタンクリック
     form = page.forms[1]
     if form.nil?
-      @agent.log.warn "no syounin.button"
+      @agent.log.warn "no approval button."
       return nil
     end
     page = @agent.submit(form, form.buttons.first)
+    if form.buttons.first.value =~ /拒否する/
+      # 「マイミクシィが1000人を超えているため、承認できません。
+      # お手数ですが｢拒否する｣ボタンを押すか、1000人以下になるまでお待ち下さい。」の処理
+      form = page.forms[1]
+      page = @agent.submit(form, form.buttons.first) #if form.buttons.first.value =~ /拒否する/
+      return page.body
+    end
 
     # 送信コメント欄
     form = page.form_with(:name => 'replyForm')
     if form.nil?
-      @agent.log.warn "no reply form"
+      @agent.log.warn "no reply form."
       return nil
     end
     body = form.field_with(:name => 'body')
     if form.nil?
-      @agent.log.warn "no textarea"
+      @agent.log.warn "no textarea."
       return nil
     end
 
