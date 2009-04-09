@@ -174,8 +174,14 @@ module Crawler
     # 送信コメント欄
     form = page.form_with(:name => 'replyForm')
     if form.nil?
-      @agent.log.warn "no reply form."
-      return nil
+      @agent.log.warn "invalid user id."
+      # 既に退会されたユーザーか、存在しないIDです。
+      page = get_page("http://mixi.jp/list_request.pl")
+      form = page.forms[2]
+      page = @agent.submit(form, form.buttons.first) # 拒否する
+      form = page.forms[1]
+      page = @agent.submit(form, form.buttons.first) # 本当に拒否する
+      return page.body
     end
     body = form.field_with(:name => 'body')
     if form.nil?
