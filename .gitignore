@@ -3,3 +3,4 @@ face
 *.db
 image
 opencv
+*.html

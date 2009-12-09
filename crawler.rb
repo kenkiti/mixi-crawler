@@ -155,51 +155,72 @@ module Crawler
 
   def list_request
     page = get_page("http://mixi.jp/list_request.pl")
-    
     # 承認ボタンクリック
     form = page.forms[1]
     if form.nil?
       @agent.log.warn "no approval button."
       return nil
     end
-    page = @agent.submit(form, form.buttons.first)
-    if form.buttons.first.value =~ /拒否する/
-      # 「マイミクシィが1000人を超えているため、承認できません。
-      # お手数ですが｢拒否する｣ボタンを押すか、1000人以下になるまでお待ち下さい。」の処理
+
+
+    page.form_with(:action => "accept_request.pl") do |f|
+      # 承認ボタンクリック
+      # 2009/10/01 ミクシィの仕様がかわり、hidden された post_key を送る必要がある。
+      # <input type="hidden" value= "23589182" name="id">
+      # <input type="hidden" value= "4903f9ea231a7783dabbd49790b48a90fce5f28a" name="post_key">
+      # <input type="hidden" value= "1" name="page">
+      # <input type="hidden" value= "1" name="anchor">
+      form['id'] = $1 if /<input type="hidden" value= "(.+)" name="id">/ =~ page.body
+      form['post_key'] = $1 if /<input type="hidden" value= "(.+)" name="post_key">/ =~ page.body
+      form['page'] = $1 if /<input type="hidden" value= "(.+)" name="page">/ =~ page.body
+      form['anchor'] = $1 if /<input type="hidden" value= "(.+)" name="anchor">/ =~ page.body
+      page = @agent.submit(form, form.buttons.first)
+      
+      # 送信コメント欄
+      form = page.form_with(:name => 'replyForm')
+      if form.nil?
+        @agent.log.warn "invalid user id."
+        # 既に退会されたユーザーか、存在しないIDです。
+        page = get_page("http://mixi.jp/list_request.pl")
+        form = page.forms[2]
+        page = @agent.submit(form, form.buttons.first) # 拒否する
+        form = page.forms[1]
+        page = @agent.submit(form, form.buttons.first) # 本当に拒否する
+        return page.body
+      end
+      body = form.field_with(:name => 'body')
+      if form.nil?
+        @agent.log.warn "no textarea."
+        return nil
+      end
+      if /おねがいし|お願いし/ =~ body.value
+        body.value +=  "\nこちらこそょろしくおねがぃします[m:66]"
+      elsif /よろしく|宜しく/ =~ body.value
+        body.value +=  "\nこちらこそょろしくね[m:66]"
+      else
+        body.value +=  "\nょろしくね[m:66]"
+      end
+      
+      puts body.value
+      
+      # <input type="hidden" name="post_key" value="b7272fd1c8b9ca71c75821dfe936f045bb86ada0">
+      form['post_key'] = $1 if /<input type="hidden" name="post_key" value= "(.+)">/ =~ page.body
+      page = @agent.submit(form, form.buttons.first)
+      return page.body
+    end
+
+    # 「マイミクシィが1000人を超えているため、承認できません。
+    # お手数ですが｢拒否する｣ボタンを押すか、1000人以下になるまでお待ち下さい。」の処理
+    page.form_with(:action => "reject_request.pl") do |f|
+      puts f.buttons.first.value
+      page = @agent.submit(f, f.buttons.first) #if form.buttons.first.value =~ /拒否する/
+
       form = page.forms[1]
+      form['post_key'] = $1 if /<input type="hidden" value= "(.+)" name="post_key">/ =~ page.body
       page = @agent.submit(form, form.buttons.first) #if form.buttons.first.value =~ /拒否する/
+      puts "----> reject"
       return page.body
     end
-
-    # 送信コメント欄
-    form = page.form_with(:name => 'replyForm')
-    if form.nil?
-      @agent.log.warn "invalid user id."
-      # 既に退会されたユーザーか、存在しないIDです。
-      page = get_page("http://mixi.jp/list_request.pl")
-      form = page.forms[2]
-      page = @agent.submit(form, form.buttons.first) # 拒否する
-      form = page.forms[1]
-      page = @agent.submit(form, form.buttons.first) # 本当に拒否する
-      return page.body
-    end
-    body = form.field_with(:name => 'body')
-    if form.nil?
-      @agent.log.warn "no textarea."
-      return nil
-    end
-
-    if /おねがいし|お願いし/ =~ body.value
-      body.value +=  "\nこちらこそょろしくおねがぃします[m:66]"
-    elsif /よろしく|宜しく/ =~ body.value
-      body.value +=  "\nこちらこそょろしくね[m:66]"
-    else
-      body.value +=  "\nょろしくね[m:66]"
-    end
-
-    puts body.value
-    page = @agent.submit(form, form.buttons.first)
-    page.body
   end
 
   class IdQueue
