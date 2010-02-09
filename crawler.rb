@@ -18,6 +18,29 @@ require 'mechanize'
 require 'pit'
 require 'active_record'
 
+class LogFormatter
+  def call(severity, time, progname, msg)
+    "[%s] [%s] %s\n" % [format_datetime(time), severity, msg2str(msg)]
+  end
+
+  private
+
+  def format_datetime(time)
+    time.strftime "%Y-%m-%d %H:%M:%S"
+  end
+
+  def msg2str(msg)
+    case msg
+    when ::String
+      msg
+    when ::Exception
+      "#{msg.message} (#{msg.class})\n" << (msg.backtrace || []).join("\n")
+    else
+      msg.inspect
+    end
+  end
+end
+
 class Logger
   private
   # Rails overrides this method so that it can customize the format
@@ -70,8 +93,10 @@ module Crawler
     def initialize(opt)
       @agent = WWW::Mechanize.new
       @agent.user_agent_alias = 'Windows IE 7'
-      @agent.log = Logger.new($stdout)
-      @agent.log.level = Logger::INFO
+      @agent.log = opt[:logger]
+#       @agent.log = Logger.new(opt[:logfile] || STDOUT)
+#       @agent.log.level = Logger::INFO
+#       @agent.log.formatter = LogFormatter.new
       @agent.redirect_ok = true
       @agent.max_history = 1
       @agent.pluggable_parser['image/jpeg'] = ImageSaver
@@ -250,51 +275,54 @@ module Crawler
   end
 end
 
-def main
+def main(logfile)
   include Crawler
-  log = Logger.new(STDOUT)
-  log.level = Logger::INFO
+  logger = Logger.new(logfile || STDOUT)
+  logger.level = Logger::INFO
+  logger.formatter = LogFormatter.new
   
   q = IdQueue.new
   q.push(['14820421']) if q.record_count == 0
   
-  m = Mixi.new(:path => 'image').login
+  m = Mixi.new(:path => 'image', :logger =>logger).login
   while id = q.shift
     if q.visited?(id)
-      log.info("Skip #{id}")
+      logger.info("Skip #{id}")
       next
     end
     
     q.push(m.list_friend(id))
     m.show_photo(id)
-    #sleep 300 if id.to_i % 30 == 0 # wait
   end
 end
 
-def approve_request
+def approve_request(logfile)
   include Crawler
-  log = Logger.new(STDOUT)
-  log.level = Logger::INFO
+  logger = Logger.new(logfile || STDOUT)
+  logger.level = Logger::INFO
+  logger.formatter = LogFormatter.new
 
-  m = Mixi.new(:path => 'image').login
+  m = Mixi.new(:path => 'image', :logger =>logger).login
   while true
     break if m.list_request == nil
   end
 end
 
-def test_logout
-  include Crawler
-  m = Mixi.new(:path => 'image').login
-  open("test.html","w").write(m.logout.body)
-  system("open test.html")
-end
+# def test_logout
+#   include Crawler
+#   m = Mixi.new(:path => 'image').login
+#   open("test.html","w").write(m.logout.body)
+#   system("open test.html")
+# end
 
 if $0 == __FILE__
   require 'optparse'
   parser = OptionParser.new
-  opt = {}
+  approve = nil
+  logfile = nil
   parser.banner = "Usage: #{File.basename($0)} [options]"
-  parser.on('-a','--approve', "approve mymiku request.") {|p| opt[:approve] = true }
+  parser.on('-a','--approve', "approve mymiku request.") {|p| approve = true }
+  parser.on("-l",'--log FILE', "output info to log file") { |p| logfile = p }
   parser.on('-h', '--help', 'Prints this message and quit.') {
     puts parser.help
     exit 0;
@@ -306,11 +334,11 @@ if $0 == __FILE__
     $stderr.puts e.message
     $stderr.puts parser.help
     exit 1
+  end
+
+  if approve
+    approve_request(logfile)
   else
-    if opt[:approve]
-      approve_request
-    else
-      main
-    end
+    main(logfile)
   end
 end
